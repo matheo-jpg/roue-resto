@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Qui paye le resto ?</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #1a1a2e;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100dvh;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+  color: #fff;
+}
+h1 {
+  font-size: clamp(1.4rem, 5vw, 2.2rem);
+  margin-bottom: 1rem;
+  text-align: center;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+.wheel-container {
+  position: relative;
+  width: min(85vw, 420px);
+  height: min(85vw, 420px);
+}
+canvas {
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  filter: drop-shadow(0 8px 32px rgba(0,0,0,0.5));
+}
+.pointer {
+  position: absolute;
+  right: -18px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 22px solid transparent;
+  border-bottom: 22px solid transparent;
+  border-right: 36px solid #fff;
+  filter: drop-shadow(-3px 0 6px rgba(0,0,0,0.4));
+  z-index: 10;
+}
+.center-circle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 22%;
+  height: 22%;
+  background: radial-gradient(circle, #fff 60%, #e0e0e0);
+  border-radius: 50%;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  z-index: 5;
+  pointer-events: none;
+}
+.instruction {
+  margin-top: 1.5rem;
+  font-size: clamp(1rem, 3.5vw, 1.3rem);
+  opacity: 0.8;
+  text-align: center;
+  animation: pulse 2s ease-in-out infinite;
+}
+.instruction.hidden { display: none; }
+.result {
+  margin-top: 1.5rem;
+  font-size: clamp(1.6rem, 5vw, 2.4rem);
+  font-weight: 800;
+  text-align: center;
+  display: none;
+}
+.result.visible { display: block; animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+.result span { color: #ff6b6b; }
+.reset-btn {
+  margin-top: 1rem;
+  padding: 0.6rem 1.8rem;
+  background: rgba(255,255,255,0.15);
+  border: 2px solid rgba(255,255,255,0.3);
+  color: #fff;
+  border-radius: 50px;
+  font-size: 1rem;
+  cursor: pointer;
+  display: none;
+  transition: background 0.2s;
+}
+.reset-btn.visible { display: inline-block; }
+.reset-btn:hover { background: rgba(255,255,255,0.25); }
+@keyframes pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+@keyframes popIn {
+  0% { transform: scale(0.5); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+</style>
+</head>
+<body>
+
+<h1>Qui paye le resto ce soir ?</h1>
+
+<div class="wheel-container">
+  <canvas id="wheel" width="840" height="840"></canvas>
+  <div class="pointer"></div>
+  <div class="center-circle"></div>
+</div>
+
+<p class="instruction" id="instruction">Appuie pour faire tourner la roue</p>
+<p class="result" id="result"></p>
+<button class="reset-btn" id="resetBtn">Relancer</button>
+
+<script>
+const canvas = document.getElementById('wheel');
+const ctx = canvas.getContext('2d');
+const W = canvas.width;
+const H = canvas.height;
+const CX = W / 2;
+const CY = H / 2;
+const R = W / 2 - 20;
+
+const names = ['Quentin', 'Matheo', 'Cesar', 'Brandon', 'Clement'];
+const colors = ['#e74c3c', '#e67e22', '#27ae60', '#8e44ad', '#f1c40f'];
+const sliceAngle = (2 * Math.PI) / names.length;
+
+let currentAngle = 0;
+let spinning = false;
+
+function drawWheel(angle) {
+  ctx.clearRect(0, 0, W, H);
+  ctx.save();
+  ctx.translate(CX, CY);
+  ctx.rotate(angle);
+
+  for (let i = 0; i < names.length; i++) {
+    const start = i * sliceAngle;
+    const end = start + sliceAngle;
+
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, R, start, end);
+    ctx.closePath();
+    ctx.fillStyle = colors[i];
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.save();
+    ctx.rotate(start + sliceAngle / 2);
+    ctx.translate(R * 0.62, 0);
+    ctx.rotate(Math.PI / 2);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 38px "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(0,0,0,0.4)';
+    ctx.shadowBlur = 6;
+    ctx.fillText(names[i], 0, 0);
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+function getWinnerIndex(angle) {
+  const pointerAngle = 0;
+  let normalized = ((pointerAngle - angle) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+  return Math.floor(normalized / sliceAngle);
+}
+
+function spin() {
+  if (spinning) return;
+  spinning = true;
+
+  document.getElementById('instruction').classList.add('hidden');
+  document.getElementById('result').classList.remove('visible');
+  document.getElementById('resetBtn').classList.remove('visible');
+
+  const cesarIndex = 2;
+  const cesarCenter = cesarIndex * sliceAngle + sliceAngle / 2;
+
+  const jitter = (Math.random() - 0.5) * sliceAngle * 0.6;
+  const targetStop = cesarCenter + jitter;
+
+  const fullRotations = 5 + Math.floor(Math.random() * 4);
+  const totalAngle = fullRotations * 2 * Math.PI + targetStop - (currentAngle % (2 * Math.PI));
+
+  const duration = 4000 + Math.random() * 2000;
+  const startAngle = currentAngle;
+  const startTime = performance.now();
+
+  function easeOutQuart(t) {
+    return 1 - Math.pow(1 - t, 4);
+  }
+
+  function animate(now) {
+    const elapsed = now - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const eased = easeOutQuart(progress);
+
+    currentAngle = startAngle + totalAngle * eased;
+    drawWheel(currentAngle);
+
+    if (progress < 1) {
+      requestAnimationFrame(animate);
+    } else {
+      spinning = false;
+      const winner = names[getWinnerIndex(currentAngle)];
+      const resultEl = document.getElementById('result');
+      resultEl.innerHTML = '<span>' + winner + '</span> paye ce soir !';
+      resultEl.classList.add('visible');
+      document.getElementById('resetBtn').classList.add('visible');
+    }
+  }
+
+  requestAnimationFrame(animate);
+}
+
+canvas.addEventListener('click', spin);
+canvas.addEventListener('touchend', function(e) {
+  e.preventDefault();
+  spin();
+});
+
+document.getElementById('resetBtn').addEventListener('click', function() {
+  document.getElementById('result').classList.remove('visible');
+  this.classList.remove('visible');
+  document.getElementById('instruction').classList.remove('hidden');
+});
+
+drawWheel(currentAngle);
+</script>
+
+</body>
+</html>
